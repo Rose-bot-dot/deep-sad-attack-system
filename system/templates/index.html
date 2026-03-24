@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>基于 Deep SAD 的攻击检测系统</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+            background-color: #f5f7fa;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .top-bar {
+            margin-bottom: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .top-bar p {
+            margin: 6px 0;
+            color: #555;
+        }
+
+        .links a {
+            display: inline-block;
+            margin-right: 15px;
+            margin-top: 10px;
+            color: #1677ff;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .links a:hover {
+            text-decoration: underline;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .card h3 {
+            margin-top: 0;
+            color: #222;
+        }
+
+        .card p {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        label {
+            display: block;
+            margin-top: 10px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        input[type="text"],
+        input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            margin-top: 6px;
+            margin-bottom: 12px;
+            box-sizing: border-box;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+        }
+
+        button {
+            padding: 10px 18px;
+            border: none;
+            background: #1677ff;
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        button:hover {
+            background: #0f5fd6;
+        }
+
+        .btn-link {
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <h1>基于 Deep SAD 的攻击检测系统</h1>
+        <p>当前用户：{{ username }}（角色：{{ role }}）</p>
+        <p>系统基于 Deep SAD 半监督异常检测模型，实现攻击检测、模型训练、阈值推荐与历史记录管理。</p>
+
+        <div class="links">
+            <a href="/records">检测记录</a>
+            <a href="/train_records">训练记录</a>
+            <a href="/logout">退出登录</a>
+        </div>
+    </div>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div style="margin-bottom: 20px;">
+                {% for category, message in messages %}
+                    <div style="
+                        padding: 12px 16px;
+                        border-radius: 8px;
+                        margin-bottom: 10px;
+                        {% if category == 'success' %}
+                            background-color: #f6ffed;
+                            color: #389e0d;
+                            border: 1px solid #b7eb8f;
+                        {% elif category == 'error' %}
+                            background-color: #fff2f0;
+                            color: #cf1322;
+                            border: 1px solid #ffccc7;
+                        {% else %}
+                            background-color: #e6f4ff;
+                            color: #0958d9;
+                            border: 1px solid #91caff;
+                        {% endif %}
+                    ">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="container">
+        <div class="card">
+            <h3>攻击检测</h3>
+            <p>上传待检测 CSV 文件，并设置异常判定阈值，系统将输出检测结果与异常分数。</p>
+
+            <form action="/detect" method="post" enctype="multipart/form-data">
+                <label>检测文件</label>
+                <input type="file" name="file" accept=".csv" required>
+
+                <label>检测阈值</label>
+                <input type="text" name="threshold" value="{{ recommended_threshold }}" required>
+
+                <button type="submit">开始检测</button>
+            </form>
+        </div>
+
+       {% if role == 'admin' %}
+    <div class="card">
+        <h3>模型训练</h3>
+        <p>设置 AE 预训练轮数、Deep SAD 训练轮数及学习率，完成模型训练并生成推荐阈值。</p>
+
+        <form action="/train" method="post">
+        <label>训练数据集</label>
+        <select name="data_path" style="width: 100%; padding: 8px; margin-top: 6px; margin-bottom: 12px; border: 1px solid #d9d9d9; border-radius: 6px;">
+            <option value="data/attack_data">默认数据集（data/attack_data）</option>
+            <option value="data/attack_data_demo">演示数据集（data/attack_data_demo）</option>
+            <option value="data/attack_data_cicids">CICIDS2017数据集（data/attack_data_cicids）</option>
+        </select>
+            <label>AE预训练轮数</label>
+            <input type="text" name="pretrain_epochs" value="10" required>
+
+            <label>Deep SAD训练轮数</label>
+            <input type="text" name="train_epochs" value="10" required>
+
+            <label>学习率</label>
+            <input type="text" name="lr" value="0.001" required>
+
+            <button type="submit">开始训练模型</button>
+        </form>
+    </div>
+    {% endif %}
+
+        <div class="card">
+            <h3>检测记录</h3>
+            <p>查看历史检测记录，包括文件名、样本统计信息以及样本级检测结果详情。</p>
+            <a href="/records" class="btn-link">
+                <button type="button">进入检测记录</button>
+            </a>
+        </div>
+
+        {% if role == 'admin' %}
+        <div class="card">
+            <h3>训练记录</h3>
+            <p>查看历史训练结果，包括模型保存路径、推荐阈值、训练轮数与训练时间。</p>
+            <a href="/train_records" class="btn-link">
+                <button type="button">进入训练记录</button>
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

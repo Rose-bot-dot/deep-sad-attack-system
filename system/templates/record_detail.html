@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>检测详情</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+            background-color: #f5f7fa;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #f0f2f5;
+        }
+
+        a {
+            color: #1677ff;
+            text-decoration: none;
+            margin-right: 15px;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>检测详情</h2>
+        <p>当前用户：{{ username }}</p>
+
+        <h3>检测记录信息</h3>
+        <p>记录ID：{{ record.id }}</p>
+        <p>文件名：{{ record.file_name }}</p>
+        <p>总样本数：{{ record.total_count }}</p>
+        <p>正常数：{{ record.normal_count }}</p>
+        <p>异常数：{{ record.anomaly_count }}</p>
+        <p>平均分数：{{ record.avg_score }}</p>
+        <p>最大分数：{{ record.max_score }}</p>
+        <p>最小分数：{{ record.min_score }}</p>
+        <p>检测时间：{{ record.create_time }}</p>
+    </div>
+
+    <h3>样本级检测结果</h3>
+    <table>
+        <tr>
+            <th>序号</th>
+            <th>异常分数</th>
+            <th>检测结果</th>
+        </tr>
+
+        {% for detail in details %}
+        <tr>
+            <td>{{ detail.sample_index }}</td>
+            <td>{{ detail.score }}</td>
+            <td>
+                {% if detail.label == 1 %}
+                    异常
+                {% else %}
+                    正常
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <br>
+    <a href="/records">返回检测记录</a>
+    <a href="/">返回首页</a>
+</body>
+</html>

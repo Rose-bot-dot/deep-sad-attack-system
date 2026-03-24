@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>检测记录</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+            background-color: #f5f7fa;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: white;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+        }
+        th {
+            background-color: #f0f2f5;
+        }
+        a {
+            color: #1677ff;
+            text-decoration: none;
+            margin-right: 8px;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        button {
+            padding: 6px 12px;
+            border: none;
+            background: #ff4d4f;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #d9363e;
+        }
+        .nav {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>检测记录</h2>
+        <p>当前用户：{{ username }}</p>
+    </div>
+
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>文件名</th>
+            <th>总样本数</th>
+            <th>正常数</th>
+            <th>异常数</th>
+            <th>平均分数</th>
+            <th>最大分数</th>
+            <th>最小分数</th>
+            <th>检测时间</th>
+            <th>操作</th>
+        </tr>
+
+        {% for record in records %}
+        <tr>
+            <td>{{ record.id }}</td>
+            <td>{{ record.file_name }}</td>
+            <td>{{ record.total_count }}</td>
+            <td>{{ record.normal_count }}</td>
+            <td>{{ record.anomaly_count }}</td>
+            <td>{{ record.avg_score }}</td>
+            <td>{{ record.max_score }}</td>
+            <td>{{ record.min_score }}</td>
+            <td>{{ record.create_time }}</td>
+            <td>
+                <a href="/record/{{ record.id }}">查看详情</a>
+
+                {% if role == 'admin' %}
+                <form action="/delete_record/{{ record.id }}" method="post" style="display:inline;">
+                    <button type="submit" onclick="return confirm('确认删除这条检测记录吗？');">删除</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <div class="nav">
+        <a href="/">返回首页</a>
+        <a href="/logout">退出登录</a>
+    </div>
+</body>
+</html>

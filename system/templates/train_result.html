@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>训练结果</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+            background-color: #f5f7fa;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        a {
+            display: inline-block;
+            margin-top: 15px;
+            margin-right: 15px;
+            color: #1677ff;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>模型训练完成</h2>
+
+        <p>训练数据目录：{{ data_path }}</p>
+        <p>模型保存路径：{{ model_path }}</p>
+        <p>推荐阈值（PR + F1）：{{ recommended_threshold }}</p>
+        <p>AE预训练轮数：{{ pretrain_epochs }}</p>
+        <p>Deep SAD训练轮数：{{ train_epochs }}</p>
+        <p>学习率：{{ lr }}</p>
+    </div>
+
+    <a href="/">返回首页</a>
+    <a href="/train_records">查看训练记录</a>
+</body>
+</html>

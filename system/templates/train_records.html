@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>训练记录</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+            background-color: #f5f7fa;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: white;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+        }
+        th {
+            background-color: #f0f2f5;
+        }
+        button {
+            padding: 6px 12px;
+            border: none;
+            background: #ff4d4f;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #d9363e;
+        }
+        a {
+            color: #1677ff;
+            text-decoration: none;
+            margin-right: 8px;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .nav {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>训练记录</h2>
+        <p>当前用户：{{ username }}</p>
+    </div>
+
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>训练数据集</th>
+            <th>模型路径</th>
+            <th>推荐阈值</th>
+            <th>AE预训练轮数</th>
+            <th>Deep SAD训练轮数</th>
+            <th>训练时间</th>
+            <th>操作</th>
+        </tr>
+
+        {% for record in records %}
+        <tr>
+            <td>{{ record.id }}</td>
+            <td>{{ record.data_path }}</td>
+            <td>{{ record.model_path }}</td>
+            <td>{{ record.recommended_threshold }}</td>
+            <td>{{ record.pretrain_epochs }}</td>
+            <td>{{ record.train_epochs }}</td>
+            <td>{{ record.create_time }}</td>
+            <td>
+                <form action="/delete_train_record/{{ record.id }}" method="post" style="display:inline;">
+                    <button type="submit" onclick="return confirm('确认删除这条训练记录吗？');">删除</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <div class="nav">
+        <a href="/">返回首页</a>
+        <a href="/logout">退出登录</a>
+    </div>
+</body>
+</html>
