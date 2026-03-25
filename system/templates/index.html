@@ -1,206 +1,527 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="utf-8">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>基于 Deep SAD 的攻击检测系统</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            margin: 30px;
-            background-color: #f5f7fa;
-        }
-
-        h1 {
+            margin: 0;
+            padding: 0;
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+            background: #f5f7fa;
             color: #333;
-            margin-bottom: 8px;
-        }
-
-        .top-bar {
-            margin-bottom: 20px;
-            padding: 20px;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }
-
-        .top-bar p {
-            margin: 6px 0;
-            color: #555;
-        }
-
-        .links a {
-            display: inline-block;
-            margin-right: 15px;
-            margin-top: 10px;
-            color: #1677ff;
-            text-decoration: none;
-            font-weight: bold;
-        }
-
-        .links a:hover {
-            text-decoration: underline;
         }
 
         .container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
+            width: 1180px;
+            max-width: calc(100% - 40px);
+            margin: 30px auto;
         }
 
-        .card {
-            background: white;
-            padding: 20px;
+        .header {
+            background: #ffffff;
             border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            padding: 24px 28px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+            margin-bottom: 20px;
         }
 
-        .card h3 {
-            margin-top: 0;
-            color: #222;
+        .header h1 {
+            margin: 0 0 12px 0;
+            font-size: 28px;
+            color: #1f2d3d;
         }
 
-        .card p {
-            color: #666;
-            line-height: 1.6;
+        .header p {
+            margin: 6px 0;
+            line-height: 1.8;
         }
 
-        label {
-            display: block;
-            margin-top: 10px;
-            font-weight: bold;
-            color: #333;
+        .nav-links {
+            margin-top: 16px;
         }
 
-        input[type="text"],
-        input[type="file"] {
-            width: 100%;
-            padding: 8px;
-            margin-top: 6px;
-            margin-bottom: 12px;
-            box-sizing: border-box;
-            border: 1px solid #d9d9d9;
+        .nav-links a {
+            display: inline-block;
+            margin-right: 12px;
+            padding: 8px 14px;
+            background: #409eff;
+            color: #fff;
+            text-decoration: none;
             border-radius: 6px;
-        }
-
-        button {
-            padding: 10px 18px;
-            border: none;
-            background: #1677ff;
-            color: white;
-            border-radius: 6px;
-            cursor: pointer;
             font-size: 14px;
         }
 
-        button:hover {
-            background: #0f5fd6;
+        .nav-links a.logout {
+            background: #f56c6c;
         }
 
-        .btn-link {
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: #ffffff;
+            border-radius: 10px;
+            padding: 22px 24px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+        }
+
+        .card.full {
+            grid-column: 1 / -1;
+        }
+
+        .card h2 {
+            margin: 0 0 14px 0;
+            font-size: 20px;
+            color: #1f2d3d;
+            border-left: 4px solid #409eff;
+            padding-left: 10px;
+        }
+
+        .card p.desc {
+            margin: 0 0 18px 0;
+            color: #666;
+            line-height: 1.8;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            height: 40px;
+            border: 1px solid #dcdfe6;
+            border-radius: 6px;
+            padding: 0 12px;
+            font-size: 14px;
+            background: #fff;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        .row-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 14px;
+        }
+
+        .btn {
+            display: inline-block;
+            min-width: 120px;
+            height: 40px;
+            line-height: 40px;
+            padding: 0 18px;
+            border: none;
+            border-radius: 6px;
+            background: #409eff;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .btn:hover {
+            opacity: 0.92;
+        }
+
+        .btn-danger {
+            background: #f56c6c;
+        }
+
+        .btn-secondary {
+            background: #67c23a;
+        }
+
+        .btn-gray {
+            background: #909399;
+        }
+
+        .flash-wrap {
+            margin-bottom: 20px;
+        }
+
+        .flash {
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .flash-success {
+            background: #f0f9eb;
+            color: #67c23a;
+            border: 1px solid #e1f3d8;
+        }
+
+        .flash-error {
+            background: #fef0f0;
+            color: #f56c6c;
+            border: 1px solid #fde2e2;
+        }
+
+        .status-box {
+            margin: 14px 0 18px 0;
+            padding: 12px 14px;
+            background: #f4f4f5;
+            border-radius: 6px;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            border: 1px solid #ebeef5;
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #fff;
+        }
+
+        th, td {
+            border-bottom: 1px solid #ebeef5;
+            padding: 12px 10px;
+            text-align: center;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        th {
+            background: #f5f7fa;
+            color: #606266;
+            font-weight: 600;
+        }
+
+        .tag-normal {
+            color: #67c23a;
+            font-weight: 700;
+        }
+
+        .tag-anomaly {
+            color: #f56c6c;
+            font-weight: 700;
+        }
+
+        .quick-links a {
+            display: inline-block;
+            margin-right: 12px;
+            margin-top: 8px;
+            color: #409eff;
             text-decoration: none;
+            font-size: 14px;
+        }
+
+        .muted {
+            color: #909399;
+            font-size: 13px;
+        }
+
+        @media (max-width: 900px) {
+            .grid,
+            .row,
+            .row-3 {
+                grid-template-columns: 1fr;
+            }
+
+            .container {
+                max-width: calc(100% - 20px);
+                margin: 15px auto;
+            }
+
+            .header,
+            .card {
+                padding: 18px;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="top-bar">
-        <h1>基于 Deep SAD 的攻击检测系统</h1>
-        <p>当前用户：{{ username }}（角色：{{ role }}）</p>
-        <p>系统基于 Deep SAD 半监督异常检测模型，实现攻击检测、模型训练、阈值推荐与历史记录管理。</p>
-
-        <div class="links">
-            <a href="/records">检测记录</a>
-            <a href="/train_records">训练记录</a>
-            <a href="/logout">退出登录</a>
-        </div>
-    </div>
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div style="margin-bottom: 20px;">
-                {% for category, message in messages %}
-                    <div style="
-                        padding: 12px 16px;
-                        border-radius: 8px;
-                        margin-bottom: 10px;
-                        {% if category == 'success' %}
-                            background-color: #f6ffed;
-                            color: #389e0d;
-                            border: 1px solid #b7eb8f;
-                        {% elif category == 'error' %}
-                            background-color: #fff2f0;
-                            color: #cf1322;
-                            border: 1px solid #ffccc7;
-                        {% else %}
-                            background-color: #e6f4ff;
-                            color: #0958d9;
-                            border: 1px solid #91caff;
-                        {% endif %}
-                    ">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
-    {% endwith %}
-
     <div class="container">
-        <div class="card">
-            <h3>攻击检测</h3>
-            <p>上传待检测 CSV 文件，并设置异常判定阈值，系统将输出检测结果与异常分数。</p>
-
-            <form action="/detect" method="post" enctype="multipart/form-data">
-                <label>检测文件</label>
-                <input type="file" name="file" accept=".csv" required>
-
-                <label>检测阈值</label>
-                <input type="text" name="threshold" value="{{ recommended_threshold }}" required>
-
-                <button type="submit">开始检测</button>
-            </form>
+        <div class="header">
+            <h1>基于 Deep SAD 的攻击检测系统</h1>
+            <p><strong>当前用户：</strong>{{ username }}（角色：{{ role }}）</p>
+            <p>系统基于 Deep SAD 半监督异常检测模型，实现攻击检测、模型训练、阈值推荐、历史记录管理与实时监控分析。</p>
+            <div class="nav-links">
+                <a href="{{ url_for('records') }}">检测记录</a>
+                {% if role == 'admin' %}
+                <a href="{{ url_for('train_records') }}">训练记录</a>
+                <a href="{{ url_for('user_manage') }}">用户管理</a>
+                {% endif %}
+                <a href="{{ url_for('logout') }}" class="logout">退出登录</a>
+            </div>
         </div>
 
-       {% if role == 'admin' %}
-    <div class="card">
-        <h3>模型训练</h3>
-        <p>设置 AE 预训练轮数、Deep SAD 训练轮数及学习率，完成模型训练并生成推荐阈值。</p>
+        <div class="flash-wrap">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash {% if category == 'success' %}flash-success{% else %}flash-error{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
 
-        <form action="/train" method="post">
-        <label>训练数据集</label>
-        <select name="data_path" style="width: 100%; padding: 8px; margin-top: 6px; margin-bottom: 12px; border: 1px solid #d9d9d9; border-radius: 6px;">
-            <option value="data/attack_data">默认数据集（data/attack_data）</option>
-            <option value="data/attack_data_demo">演示数据集（data/attack_data_demo）</option>
-            <option value="data/attack_data_cicids">CICIDS2017数据集（data/attack_data_cicids）</option>
-        </select>
-            <label>AE预训练轮数</label>
-            <input type="text" name="pretrain_epochs" value="10" required>
+        <div class="grid">
+            <div class="card">
+                <h2>攻击检测</h2>
+                <p class="desc">
+                    上传待检测 CSV 文件，并设置异常判定阈值，系统将输出检测结果与异常分数。
+                </p>
+                <form action="{{ url_for('detect') }}" method="post" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label for="file">检测文件</label>
+                        <input type="file" id="file" name="file" accept=".csv" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="threshold">检测阈值</label>
+                        <input type="text" id="threshold" name="threshold" value="{{ recommended_threshold }}" required>
+                    </div>
+                    <button type="submit" class="btn">开始检测</button>
+                </form>
+            </div>
 
-            <label>Deep SAD训练轮数</label>
-            <input type="text" name="train_epochs" value="10" required>
+            {% if role == 'admin' %}
+            <div class="card">
+                <h2>模型训练</h2>
+                <p class="desc">
+                    设置 AE 预训练轮数、Deep SAD 训练轮数及学习率，完成模型训练并生成推荐阈值。
+                </p>
+                <form action="{{ url_for('train') }}" method="post">
+                    <div class="form-group">
+                        <label for="data_path">训练数据集</label>
+                        <select id="data_path" name="data_path">
+                            <option value="data/attack_data">默认数据集（data/attack_data）</option>
+                            <option value="data/attack_data_demo">演示数据集（data/attack_data_demo）</option>
+                            <option value="data/attack_data_cicids">CICIDS2017数据集（data/attack_data_cicids）</option>
+                        </select>
+                    </div>
 
-            <label>学习率</label>
-            <input type="text" name="lr" value="0.001" required>
+                    <div class="row-3">
+                        <div class="form-group">
+                            <label for="pretrain_epochs">AE预训练轮数</label>
+                            <input type="number" id="pretrain_epochs" name="pretrain_epochs" value="10" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="train_epochs">Deep SAD训练轮数</label>
+                            <input type="number" id="train_epochs" name="train_epochs" value="10" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="lr">学习率</label>
+                            <input type="text" id="lr" name="lr" value="0.001">
+                        </div>
+                    </div>
 
-            <button type="submit">开始训练模型</button>
-        </form>
+                    <button type="submit" class="btn btn-secondary">开始训练模型</button>
+                </form>
+            </div>
+            {% endif %}
+
+            <div class="card full">
+                <h2>实时监控</h2>
+                <p class="desc">
+                    启动后，系统将对当前网卡流量进行抓取、聚合与异常检测，并动态展示最近检测结果。
+                </p>
+
+                <div class="row-3">
+                    <div class="form-group">
+                        <label for="iface">网卡名称</label>
+                        <input type="text" id="iface" placeholder="留空则使用默认网卡">
+                    </div>
+                    <div class="form-group">
+                        <label for="live-threshold">监控阈值</label>
+                        <input type="text" id="live-threshold" value="{{ recommended_threshold }}">
+                    </div>
+                    <div class="form-group">
+                        <label>&nbsp;</label>
+                        <div>
+                            <button type="button" class="btn" onclick="startMonitor()">开始监控</button>
+                            <button type="button" class="btn btn-danger" onclick="stopMonitor()">停止监控</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="status-box" id="monitor-status-box">
+                    <div><strong>监控状态：</strong><span id="monitor-status">未启动</span></div>
+                    <div><strong>当前网卡：</strong><span id="monitor-iface">默认</span></div>
+                    <div><strong>当前阈值：</strong><span id="monitor-threshold">{{ recommended_threshold }}</span></div>
+                    <div><strong>缓存事件数：</strong><span id="monitor-count">0</span></div>
+                </div>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>时间</th>
+                                <th>源IP</th>
+                                <th>目标IP</th>
+                                <th>协议</th>
+                                <th>源端口</th>
+                                <th>目标端口</th>
+                                <th>异常分数</th>
+                                <th>检测结果</th>
+                            </tr>
+                        </thead>
+                        <tbody id="monitor-body">
+                            <tr>
+                                <td colspan="8" class="muted">暂无实时监控数据</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>检测记录</h2>
+                <p class="desc">
+                    查看历史检测记录，包括文件名、样本统计信息以及样本级检测结果详情。
+                </p>
+                <div class="quick-links">
+                    <a href="{{ url_for('records') }}">进入检测记录</a>
+                </div>
+            </div>
+
+            {% if role == 'admin' %}
+            <div class="card">
+                <h2>训练记录</h2>
+                <p class="desc">
+                    查看历史训练结果，包括模型保存路径、推荐阈值、训练轮数与训练时间。
+                </p>
+                <div class="quick-links">
+                    <a href="{{ url_for('train_records') }}">进入训练记录</a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
     </div>
-    {% endif %}
 
-        <div class="card">
-            <h3>检测记录</h3>
-            <p>查看历史检测记录，包括文件名、样本统计信息以及样本级检测结果详情。</p>
-            <a href="/records" class="btn-link">
-                <button type="button">进入检测记录</button>
-            </a>
-        </div>
+    <script>
+        async function postForm(url, data) {
+            const body = new URLSearchParams(data);
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: body
+            });
+            return await resp.json();
+        }
 
-        {% if role == 'admin' %}
-        <div class="card">
-            <h3>训练记录</h3>
-            <p>查看历史训练结果，包括模型保存路径、推荐阈值、训练轮数与训练时间。</p>
-            <a href="/train_records" class="btn-link">
-                <button type="button">进入训练记录</button>
-            </a>
-        </div>
-        {% endif %}
-    </div>
+        function renderMonitorStatus(status) {
+            const runningText = status.running ? '运行中' : '已停止';
+            document.getElementById('monitor-status').innerText = runningText;
+            document.getElementById('monitor-iface').innerText = status.iface || '默认';
+            document.getElementById('monitor-threshold').innerText = status.threshold ?? '';
+            document.getElementById('monitor-count').innerText = status.cached_events ?? 0;
+        }
+
+        function renderMonitorEvents(events) {
+            const body = document.getElementById('monitor-body');
+            body.innerHTML = '';
+
+            if (!events || events.length === 0) {
+                body.innerHTML = '<tr><td colspan="8" class="muted">暂无实时监控数据</td></tr>';
+                return;
+            }
+
+            events.forEach(item => {
+                const tr = document.createElement('tr');
+                const labelClass = item.label === '异常' ? 'tag-anomaly' : 'tag-normal';
+
+                tr.innerHTML = `
+                    <td>${item.time ?? ''}</td>
+                    <td>${item.src_ip ?? ''}</td>
+                    <td>${item.dst_ip ?? ''}</td>
+                    <td>${item.protocol ?? ''}</td>
+                    <td>${item.src_port ?? ''}</td>
+                    <td>${item.dst_port ?? ''}</td>
+                    <td>${item.score ?? ''}</td>
+                    <td class="${labelClass}">${item.label ?? ''}</td>
+                `;
+                body.appendChild(tr);
+            });
+        }
+
+        async function startMonitor() {
+            try {
+                const iface = document.getElementById('iface').value.trim();
+                const threshold = document.getElementById('live-threshold').value.trim();
+
+                const result = await postForm('/monitor/start', {
+                    iface: iface,
+                    threshold: threshold
+                });
+
+                if (result.success) {
+                    await refreshMonitor();
+                    alert(result.message || '实时监控已启动');
+                } else {
+                    alert(result.message || '启动失败');
+                }
+            } catch (error) {
+                alert('启动监控失败，请检查后端接口是否已添加');
+                console.error(error);
+            }
+        }
+
+        async function stopMonitor() {
+            try {
+                const result = await postForm('/monitor/stop', {});
+                if (result.success) {
+                    await refreshMonitor();
+                    alert(result.message || '实时监控已停止');
+                } else {
+                    alert(result.message || '停止失败');
+                }
+            } catch (error) {
+                alert('停止监控失败，请检查后端接口是否已添加');
+                console.error(error);
+            }
+        }
+
+        async function refreshMonitor() {
+            try {
+                const resp = await fetch('/monitor/data');
+                const data = await resp.json();
+
+                if (data.success) {
+                    renderMonitorStatus(data.status || {});
+                    renderMonitorEvents(data.events || []);
+                }
+            } catch (error) {
+                console.error('实时监控数据刷新失败：', error);
+            }
+        }
+
+        setInterval(refreshMonitor, 2000);
+        refreshMonitor();
+    </script>
 </body>
 </html>

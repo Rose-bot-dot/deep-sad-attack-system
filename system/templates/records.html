@@ -61,6 +61,7 @@
 
     <table>
         <tr>
+            <th>提交用户</th>
             <th>ID</th>
             <th>文件名</th>
             <th>总样本数</th>
@@ -75,6 +76,7 @@
 
         {% for record in records %}
         <tr>
+            <td>{{ record.username or '未知用户' }}</td>
             <td>{{ record.id }}</td>
             <td>{{ record.file_name }}</td>
             <td>{{ record.total_count }}</td>
