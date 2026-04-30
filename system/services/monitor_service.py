@@ -2,7 +2,7 @@ import time
 import threading
 from collections import deque
 
-from scapy.all import sniff, IP, TCP, UDP
+from scapy.all import sniff, IP, TCP, UDP, get_if_list, conf
 
 from system.services.detect_service import AttackDetector
 
@@ -36,15 +36,120 @@ class LiveTrafficMonitor:
         self.thread = None
         self.lock = threading.Lock()
 
-        # 当前活动流
         self.flows = {}
-
-        # 最近检测事件
         self.events = deque(maxlen=max_events)
+
+    def _is_bad_iface(self, iface):
+        """
+        判断是否为不适合抓正常外网流量的网卡。
+        """
+        name = str(iface).lower()
+
+        bad_keywords = [
+            "loopback",
+            "npcap loopback",
+            "virtual",
+            "vmware",
+            "virtualbox",
+            "docker",
+            "hyper-v",
+            "bluetooth",
+            "teredo",
+            "isatap"
+        ]
+
+        return any(keyword in name for keyword in bad_keywords)
+
+    def _score_iface_once(self, iface, timeout=0.6):
+        """
+        对单个网卡进行短时间采样。
+        返回该网卡在 timeout 时间内抓到的数据包数量。
+        """
+        try:
+            packets = sniff(
+                iface=iface,
+                timeout=timeout,
+                store=True
+            )
+            return len(packets)
+        except Exception as e:
+            print(f"[LiveTrafficMonitor] 网卡采样失败：{iface}，原因：{e}")
+            return -1
+
+    def list_interfaces(self, sample_seconds=0.6):
+        """
+        返回所有网卡列表，并给每个网卡计算短时间流量分数。
+        分数越高，说明该网卡当前流量越大。
+        """
+        interfaces = get_if_list()
+
+        results = []
+
+        print("\n========== 当前 Scapy 检测到的网卡 ==========")
+
+        for i, iface in enumerate(interfaces):
+            iface_text = str(iface)
+            is_bad = self._is_bad_iface(iface_text)
+
+            if is_bad:
+                score = -1
+            else:
+                score = self._score_iface_once(iface_text, timeout=sample_seconds)
+
+            item = {
+                "index": i,
+                "name": iface_text,
+                "score": score,
+                "disabled": is_bad,
+                "display": f"{i} - {iface_text} | 当前流量包数：{score if score >= 0 else '不推荐'}"
+            }
+
+            results.append(item)
+
+            print(item["display"])
+
+        valid_results = [
+            item for item in results
+            if not item["disabled"] and item["score"] >= 0
+        ]
+
+        default_iface = None
+
+        if valid_results:
+            valid_results.sort(key=lambda x: x["score"], reverse=True)
+            default_iface = valid_results[0]["name"]
+        else:
+            try:
+                default_iface = str(conf.iface)
+            except Exception:
+                default_iface = None
+
+        for item in results:
+            item["selected"] = item["name"] == default_iface
+
+        print(f"[LiveTrafficMonitor] 默认推荐网卡：{default_iface}")
+
+        return {
+            "interfaces": results,
+            "default_iface": default_iface
+        }
+
+    def _auto_select_iface(self):
+        """
+        自动选择当前流量最高的网卡。
+        """
+        data = self.list_interfaces(sample_seconds=0.6)
+        default_iface = data.get("default_iface")
+
+        if not default_iface:
+            raise RuntimeError("没有找到可用网卡，请检查 Npcap 是否安装正常，或手动选择网卡。")
+
+        print(f"[LiveTrafficMonitor] 自动选择流量最高网卡：{default_iface}")
+        return default_iface
 
     def _ensure_detector(self):
         """
-        延迟加载检测器，避免应用启动时模型文件不存在直接报错。
+        延迟加载检测器。
         """
         if self.detector is None:
             self.detector = AttackDetector(model_path=self.model_path)
@@ -52,8 +157,6 @@ class LiveTrafficMonitor:
     def _make_keys(self, pkt):
         """
         根据数据包构造正向/反向流键。
-        流键格式：
-        (src_ip, dst_ip, src_port, dst_port, protocol)
         """
         if IP not in pkt:
             return None, None, None
@@ -84,6 +187,7 @@ class LiveTrafficMonitor:
             'dst_port': dst_port,
             'protocol': proto
         }
+
         return fwd_key, bwd_key, meta
 
     def _get_or_create_flow(self, pkt):
@@ -91,6 +195,7 @@ class LiveTrafficMonitor:
         获取已有流，若不存在则新建。
         """
         fwd_key, bwd_key, meta = self._make_keys(pkt)
+
         if fwd_key is None:
             return None
 
@@ -130,9 +235,10 @@ class LiveTrafficMonitor:
 
     def _handle_packet(self, pkt):
         """
-        处理单个数据包，将其归入对应流。
+        处理单个数据包。
         """
         result = self._get_or_create_flow(pkt)
+
         if result is None:
             return
 
@@ -154,6 +260,7 @@ class LiveTrafficMonitor:
 
             if TCP in pkt:
                 flags = int(pkt[TCP].flags)
+
                 if flags & 0x01:
                     flow['fin_count'] += 1
                 if flags & 0x02:
@@ -185,8 +292,6 @@ class LiveTrafficMonitor:
     def _build_feature_dict(self, flow):
         """
         将流转换为模型可用的特征字典。
-        这里只构造一部分常见 CIC-IDS 风格流特征。
-        其余训练列由 detect_service 中按 feature_columns 自动补 0。
         """
         duration = max(flow['last_seen'] - flow['start_time'], 1e-6)
 
@@ -268,13 +373,14 @@ class LiveTrafficMonitor:
 
     def _flush_idle_flows(self):
         """
-        将超过空闲超时时间的流判定为结束流，并送入模型检测。
+        将超过空闲超时时间的流判定为结束流。
         """
         now_ts = time.time()
         expired_flows = []
 
         with self.lock:
             expired_keys = []
+
             for key, flow in self.flows.items():
                 if now_ts - flow['last_seen'] >= self.idle_timeout:
                     expired_keys.append(key)
@@ -299,14 +405,18 @@ class LiveTrafficMonitor:
 
     def _sniff_once(self):
         """
-        抓取一个短周期的数据包，然后统一清理空闲流。
+        抓取一个短周期的数据包。
         """
+        if not self.iface:
+            raise RuntimeError("当前没有可用网卡，自动选择网卡失败。")
+
         sniff(
             iface=self.iface,
             store=False,
             timeout=1,
             prn=self._handle_packet
         )
+
         self._flush_idle_flows()
 
     def _run_loop(self):
@@ -317,6 +427,10 @@ class LiveTrafficMonitor:
             try:
                 self._sniff_once()
             except Exception as e:
+                error_msg = f'抓包失败：{str(e)}'
+
+                print(f"[LiveTrafficMonitor] {error_msg}")
+
                 self.events.appendleft({
                     'time': time.strftime('%Y-%m-%d %H:%M:%S'),
                     'src_ip': '',
@@ -325,8 +439,9 @@ class LiveTrafficMonitor:
                     'dst_port': '',
                     'protocol': '',
                     'score': 0,
-                    'label': f'抓包失败：{str(e)}'
+                    'label': error_msg
                 })
+
                 time.sleep(1)
 
     def start(self, iface=None, threshold=None):
@@ -336,11 +451,25 @@ class LiveTrafficMonitor:
         if self.running:
             return
 
-        if iface is not None:
-            self.iface = iface
+        if iface is None:
+            self.iface = self._auto_select_iface()
+        else:
+            iface_text = str(iface).strip()
+
+            if (
+                iface_text == ""
+                or iface_text.lower() == "auto"
+                or iface_text in ["自动", "自动选择", "自动选择网卡"]
+            ):
+                self.iface = self._auto_select_iface()
+            else:
+                self.iface = iface_text
 
         if threshold is not None:
             self.threshold = threshold
+
+        print(f"[LiveTrafficMonitor] 当前使用网卡：{self.iface}")
+        print(f"[LiveTrafficMonitor] 当前检测阈值：{self.threshold}")
 
         self.running = True
         self.thread = threading.Thread(target=self._run_loop, daemon=True)

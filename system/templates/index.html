@@ -116,6 +116,17 @@
             background: #fff;
         }
 
+        .form-tip {
+            margin-top: 6px;
+            color: #909399;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .iface-actions {
+            margin-top: 8px;
+        }
+
         .row {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -124,7 +135,7 @@
 
         .row-3 {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-columns: 1.4fr 0.8fr 1fr;
             gap: 14px;
         }
 
@@ -157,6 +168,14 @@
 
         .btn-gray {
             background: #909399;
+        }
+
+        .btn-small {
+            min-width: 100px;
+            height: 34px;
+            line-height: 34px;
+            padding: 0 12px;
+            font-size: 13px;
         }
 
         .flash-wrap {
@@ -351,13 +370,23 @@
 
                 <div class="row-3">
                     <div class="form-group">
-                        <label for="iface">网卡名称</label>
-                        <input type="text" id="iface" placeholder="留空则使用默认网卡">
+                        <label for="iface">网卡选择</label>
+                        <select id="iface">
+                            <option value="auto">正在扫描网卡，请稍等...</option>
+                        </select>
+                        <div class="iface-actions">
+                            <button type="button" class="btn btn-gray btn-small" onclick="loadInterfaces()">重新扫描网卡</button>
+                        </div>
+                        <div class="form-tip" id="iface-tip">
+                            系统会自动检测网卡流量，并默认选择当前流量最高的网卡。
+                        </div>
                     </div>
+
                     <div class="form-group">
                         <label for="live-threshold">监控阈值</label>
                         <input type="text" id="live-threshold" value="{{ recommended_threshold }}">
                     </div>
+
                     <div class="form-group">
                         <label>&nbsp;</label>
                         <div>
@@ -432,6 +461,92 @@
                 body: body
             });
             return await resp.json();
+        }
+
+        async function loadInterfaces() {
+            const ifaceSelect = document.getElementById('iface');
+            const ifaceTip = document.getElementById('iface-tip');
+
+            if (!ifaceSelect) {
+                return;
+            }
+
+            ifaceSelect.innerHTML = '';
+            const loadingOption = document.createElement('option');
+            loadingOption.value = 'auto';
+            loadingOption.textContent = '正在扫描网卡，请稍等...';
+            ifaceSelect.appendChild(loadingOption);
+
+            if (ifaceTip) {
+                ifaceTip.innerText = '正在扫描网卡流量，请稍等。扫描期间请保持网络有流量，例如刷新网页或 ping 一个网站。';
+            }
+
+            try {
+                const resp = await fetch('/monitor/interfaces');
+                const result = await resp.json();
+
+                ifaceSelect.innerHTML = '';
+
+                const autoOption = document.createElement('option');
+                autoOption.value = 'auto';
+                autoOption.textContent = '自动选择：当前流量最高的网卡';
+                ifaceSelect.appendChild(autoOption);
+
+                if (!result.success) {
+                    if (ifaceTip) {
+                        ifaceTip.innerText = result.message || '获取网卡列表失败，请检查后端 /monitor/interfaces 接口。';
+                    }
+                    return;
+                }
+
+                const interfaces = result.interfaces || [];
+                const defaultIface = result.default_iface || '';
+
+                if (interfaces.length === 0) {
+                    if (ifaceTip) {
+                        ifaceTip.innerText = '没有检测到网卡，请检查 Npcap 是否安装，并用管理员权限运行项目。';
+                    }
+                    return;
+                }
+
+                interfaces.forEach(function(item) {
+                    const option = document.createElement('option');
+
+                    option.value = item.name || '';
+                    option.textContent = item.display || item.name || '未知网卡';
+
+                    if (item.disabled) {
+                        option.disabled = true;
+                    }
+
+                    if (item.name === defaultIface) {
+                        option.selected = true;
+                    }
+
+                    ifaceSelect.appendChild(option);
+                });
+
+                if (ifaceTip) {
+                    if (defaultIface) {
+                        ifaceTip.innerText = '默认已选择当前流量最高的网卡：' + defaultIface;
+                    } else {
+                        ifaceTip.innerText = '未能判断默认网卡，你可以手动选择一个非 Loopback / 非虚拟网卡。';
+                    }
+                }
+            } catch (error) {
+                ifaceSelect.innerHTML = '';
+
+                const autoOption = document.createElement('option');
+                autoOption.value = 'auto';
+                autoOption.textContent = '自动选择：当前流量最高的网卡';
+                ifaceSelect.appendChild(autoOption);
+
+                if (ifaceTip) {
+                    ifaceTip.innerText = '扫描网卡失败，请确认 app.py 已添加 /monitor/interfaces 接口。';
+                }
+
+                console.error('扫描网卡失败：', error);
+            }
         }
 
         function renderMonitorStatus(status) {
@@ -520,8 +635,11 @@
             }
         }
 
-        setInterval(refreshMonitor, 2000);
-        refreshMonitor();
+        document.addEventListener('DOMContentLoaded', function() {
+            loadInterfaces();
+            refreshMonitor();
+            setInterval(refreshMonitor, 2000);
+        });
     </script>
 </body>
 </html>
