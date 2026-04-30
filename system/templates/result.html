@@ -5,16 +5,112 @@
     <title>检测结果</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            margin: 30px;
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+            margin: 0;
             background-color: #f5f7fa;
+            color: #1f2937;
+        }
+
+        .page {
+            padding: 30px;
         }
 
         .card {
             background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            padding: 24px;
+            border-radius: 14px;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+            border: 1px solid #e5e7eb;
+        }
+
+        .top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        h2 {
+            margin: 0 0 16px;
+            color: #0f172a;
+        }
+
+        h3 {
+            margin-top: 28px;
+            color: #0f172a;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            margin-top: 20px;
+        }
+
+        .stat {
+            background: #f8fafc;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .stat .label {
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 8px;
+        }
+
+        .stat .value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .blue {
+            color: #2563eb !important;
+        }
+
+        .green {
+            color: #16a34a !important;
+        }
+
+        .red {
+            color: #dc2626 !important;
+        }
+
+        .orange {
+            color: #f97316 !important;
+        }
+
+        .actions {
+            margin-top: 22px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 10px 18px;
+            border-radius: 8px;
+            color: white;
+            text-decoration: none;
+            background: #2563eb;
+            font-size: 14px;
+        }
+
+        .btn.secondary {
+            background: #64748b;
+        }
+
+        .btn.green {
+            background: #16a34a;
+            color: white !important;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
         }
 
         table {
@@ -22,46 +118,126 @@
             border-collapse: collapse;
             margin-top: 15px;
             background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
         }
 
         th, td {
-            border: 1px solid #ddd;
-            padding: 10px;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 11px;
             text-align: center;
+            font-size: 14px;
         }
 
         th {
-            background-color: #f0f2f5;
+            background-color: #f1f5f9;
+            color: #334155;
         }
 
-        a {
+        .tag {
             display: inline-block;
-            margin-top: 15px;
-            margin-right: 15px;
-            color: #1677ff;
-            text-decoration: none;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 700;
         }
 
-        a:hover {
-            text-decoration: underline;
+        .tag-normal {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+
+        .tag-abnormal {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .info-line {
+            color: #475569;
+            line-height: 1.8;
         }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h2>检测结果</h2>
+<div class="page">
 
-        <p>文件名：{{ filename }}</p>
-        <p>本次检测阈值：{{ threshold }}</p>
-        <p>总样本数：{{ total }}</p>
-        <p>正常样本数：{{ normal_count }}</p>
-        <p>异常样本数：{{ anomaly_count }}</p>
-        <p>平均异常分数：{{ avg_score }}</p>
-        <p>最大异常分数：{{ max_score }}</p>
-        <p>最小异常分数：{{ min_score }}</p>
+    <div class="card">
+        <div class="top">
+            <div>
+                <h2>检测结果</h2>
+                <div class="info-line">
+                    文件名：{{ filename }}<br>
+                    本次检测阈值：{{ threshold }}
+                </div>
+            </div>
+
+            <div class="actions">
+                <a class="btn secondary" href="/">返回首页</a>
+                <a class="btn secondary" href="/records">查看检测记录</a>
+                <a class="btn green" href="/summary" target="_blank">查看检测总结大屏</a>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat">
+                <div class="label">总样本数</div>
+                <div class="value blue">{{ total }}</div>
+            </div>
+
+            <div class="stat">
+                <div class="label">正常样本数</div>
+                <div class="value green">{{ normal_count }}</div>
+            </div>
+
+            <div class="stat">
+                <div class="label">异常样本数</div>
+                <div class="value red">{{ anomaly_count }}</div>
+            </div>
+
+            <div class="stat">
+                <div class="label">异常比例</div>
+                <div class="value orange">
+                    {% if total and total > 0 %}
+                        {{ "%.2f"|format(anomaly_count / total * 100) }}%
+                    {% else %}
+                        0%
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="stat">
+                <div class="label">平均异常分数</div>
+                <div class="value">{{ "%.6f"|format(avg_score) }}</div>
+            </div>
+
+            <div class="stat">
+                <div class="label">最大异常分数</div>
+                <div class="value red">{{ "%.6f"|format(max_score) }}</div>
+            </div>
+
+            <div class="stat">
+                <div class="label">最小异常分数</div>
+                <div class="value green">{{ "%.6f"|format(min_score) }}</div>
+            </div>
+
+            <div class="stat">
+                <div class="label">结果说明</div>
+                <div class="value" style="font-size: 18px;">
+                    {% if total and total > 0 and anomaly_count / total >= 0.5 %}
+                        高风险
+                    {% elif total and total > 0 and anomaly_count / total >= 0.15 %}
+                        中风险
+                    {% else %}
+                        低风险
+                    {% endif %}
+                </div>
+            </div>
+        </div>
     </div>
 
     <h3>检测明细</h3>
+
     <table>
         <tr>
             <th>序号</th>
@@ -71,19 +247,18 @@
         {% for item in results %}
         <tr>
             <td>{{ loop.index }}</td>
-            <td>{{ item.score }}</td>
+            <td>{{ "%.6f"|format(item.score) }}</td>
             <td>
                 {% if item.label == 1 %}
-                    异常
+                    <span class="tag tag-abnormal">异常</span>
                 {% else %}
-                    正常
+                    <span class="tag tag-normal">正常</span>
                 {% endif %}
             </td>
         </tr>
         {% endfor %}
     </table>
 
-    <a href="/">返回首页</a>
-    <a href="/records">查看检测记录</a>
+</div>
 </body>
 </html>

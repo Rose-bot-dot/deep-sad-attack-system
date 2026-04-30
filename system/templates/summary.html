@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>监测结果 - Deep SAD 攻击检测系统</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+            color: #eaf2ff;
+            background:
+                radial-gradient(circle at 10% 10%, rgba(64,158,255,.25), transparent 28%),
+                radial-gradient(circle at 90% 20%, rgba(103,194,58,.18), transparent 30%),
+                linear-gradient(135deg, #071426 0%, #0d1f36 48%, #08111f 100%);
+        }
+        a { color: inherit; text-decoration: none; }
+        .page {
+            width: min(1500px, calc(100% - 36px));
+            margin: 0 auto;
+            padding: 24px 0 34px;
+        }
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+        .title-box h1 {
+            margin: 0;
+            font-size: 32px;
+            letter-spacing: 2px;
+            font-weight: 800;
+        }
+        .title-box p {
+            margin: 8px 0 0;
+            color: #9fb7d6;
+            font-size: 14px;
+        }
+        .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 108px;
+            height: 38px;
+            padding: 0 16px;
+            border-radius: 8px;
+            border: 1px solid rgba(120,180,255,.32);
+            background: rgba(64,158,255,.18);
+            color: #eaf2ff;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn:hover { background: rgba(64,158,255,.32); }
+        .summary-text {
+            margin-bottom: 18px;
+            padding: 14px 16px;
+            border: 1px solid rgba(120,180,255,.18);
+            border-radius: 14px;
+            background: rgba(255,255,255,.06);
+            color: #cbdaf0;
+            line-height: 1.7;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+        .card {
+            border: 1px solid rgba(120,180,255,.18);
+            border-radius: 16px;
+            background: rgba(255,255,255,.07);
+            box-shadow: 0 14px 32px rgba(0,0,0,.22);
+            overflow: hidden;
+        }
+        .metric {
+            padding: 18px;
+        }
+        .metric .label {
+            color: #99b0cf;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .metric .value {
+            font-size: 30px;
+            font-weight: 800;
+            line-height: 1.1;
+        }
+        .metric .sub {
+            margin-top: 9px;
+            color: #8fa5c2;
+            font-size: 13px;
+        }
+        .normal { color: #4fe37a; }
+        .abnormal { color: #ff6876; }
+        .warn { color: #ffd166; }
+        .blue { color: #6bb6ff; }
+        .main {
+            display: grid;
+            grid-template-columns: 1fr 1.35fr;
+            gap: 14px;
+        }
+        .panel-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(120,180,255,.14);
+            font-weight: 700;
+        }
+        .panel-title span:last-child {
+            color: #8fa5c2;
+            font-size: 12px;
+            font-weight: 400;
+        }
+        .panel-body { padding: 16px; }
+        .bar-wrap {
+            height: 18px;
+            overflow: hidden;
+            border-radius: 999px;
+            background: rgba(255,255,255,.10);
+            display: flex;
+            margin: 10px 0 16px;
+        }
+        .bar-normal { background: linear-gradient(90deg, #2fce6d, #6df096); height: 100%; }
+        .bar-abnormal { background: linear-gradient(90deg, #ff5b6b, #ff9aa4); height: 100%; }
+        .legend {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            color: #a9bad3;
+            font-size: 13px;
+        }
+        canvas {
+            width: 100%;
+            height: 260px;
+            display: block;
+            border-radius: 12px;
+            background: rgba(4,14,27,.35);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        th, td {
+            padding: 11px 10px;
+            border-bottom: 1px solid rgba(120,180,255,.12);
+            text-align: center;
+            white-space: nowrap;
+        }
+        th {
+            color: #9eb8db;
+            font-weight: 700;
+            background: rgba(255,255,255,.04);
+        }
+        td { color: #e8f0ff; }
+        .table-wrap {
+            overflow-x: auto;
+            max-height: 430px;
+            overflow-y: auto;
+        }
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 54px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 12px;
+        }
+        .pill-normal {
+            color: #3ff47c;
+            background: rgba(63,244,124,.12);
+            border: 1px solid rgba(63,244,124,.22);
+        }
+        .pill-abnormal {
+            color: #ff6474;
+            background: rgba(255,100,116,.12);
+            border: 1px solid rgba(255,100,116,.22);
+        }
+        .empty {
+            text-align: center;
+            color: #91a9c7;
+            padding: 42px 10px;
+        }
+        @media (max-width: 1100px) {
+            .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .main { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 650px) {
+            .page { width: min(100% - 20px, 1500px); }
+            .topbar { align-items: flex-start; flex-direction: column; }
+            .grid { grid-template-columns: 1fr; }
+            .title-box h1 { font-size: 26px; }
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+    <div class="topbar">
+        <div class="title-box">
+            <h1>监测结果</h1>
+            <p>用于实时监测结束后快速查看检测数量、异常比例、风险等级和最近检测记录。</p>
+        </div>
+        <div class="actions">
+            <a class="btn" href="{{ url_for('index') }}">返回首页</a>
+            <button class="btn" onclick="loadData()">刷新数据</button>
+        </div>
+    </div>
+
+    <div class="summary-text" id="summaryText">正在读取实时监测结果...</div>
+
+    <div class="grid">
+        <div class="card metric">
+            <div class="label">监控状态</div>
+            <div class="value blue" id="statusValue">--</div>
+            <div class="sub" id="updateTime">等待刷新</div>
+        </div>
+        <div class="card metric">
+            <div class="label">检测总数</div>
+            <div class="value" id="totalValue">0</div>
+            <div class="sub">当前已记录流量/样本数量</div>
+        </div>
+        <div class="card metric">
+            <div class="label">正常数量</div>
+            <div class="value normal" id="normalValue">0</div>
+            <div class="sub">模型判断为正常的记录</div>
+        </div>
+        <div class="card metric">
+            <div class="label">异常数量</div>
+            <div class="value abnormal" id="abnormalValue">0</div>
+            <div class="sub">模型判断为异常的记录</div>
+        </div>
+        <div class="card metric">
+            <div class="label">异常比例</div>
+            <div class="value warn" id="rateValue">0%</div>
+            <div class="sub">异常数量 / 检测总数</div>
+        </div>
+        <div class="card metric">
+            <div class="label">风险等级</div>
+            <div class="value" id="riskValue">--</div>
+            <div class="sub">根据异常比例进行直观分级</div>
+        </div>
+        <div class="card metric">
+            <div class="label">平均异常分数</div>
+            <div class="value blue" id="avgScoreValue">0</div>
+            <div class="sub">分数越高，偏离正常模式越明显</div>
+        </div>
+        <div class="card metric">
+            <div class="label">最高异常分数</div>
+            <div class="value abnormal" id="maxScoreValue">0</div>
+            <div class="sub">最近记录中的最高分</div>
+        </div>
+    </div>
+
+    <div class="main">
+        <div class="card">
+            <div class="panel-title">
+                <span>结果占比</span>
+                <span>正常 / 异常</span>
+            </div>
+            <div class="panel-body">
+                <div class="bar-wrap">
+                    <div class="bar-normal" id="barNormal" style="width:0%"></div>
+                    <div class="bar-abnormal" id="barAbnormal" style="width:0%"></div>
+                </div>
+                <div class="legend">
+                    <span>正常：<b class="normal" id="legendNormal">0</b></span>
+                    <span>异常：<b class="abnormal" id="legendAbnormal">0</b></span>
+                </div>
+                <canvas id="trendCanvas" width="680" height="260"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="panel-title">
+                <span>最近监测记录</span>
+                <span>展示最近 30 条</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>时间</th>
+                        <th>源IP</th>
+                        <th>目标IP</th>
+                        <th>协议</th>
+                        <th>源端口</th>
+                        <th>目标端口</th>
+                        <th>异常分数</th>
+                        <th>检测结果</th>
+                    </tr>
+                    </thead>
+                    <tbody id="recordsBody">
+                    <tr><td colspan="8" class="empty">暂无监测记录</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const REFRESH_INTERVAL = 3000;
+    let timer = null;
+
+    function numberText(value, digits = 6) {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return '0';
+        if (Math.abs(n) >= 100) return n.toFixed(3).replace(/\.0+$/, '');
+        return n.toFixed(digits).replace(/0+$/, '').replace(/\.$/, '');
+    }
+
+    function getScore(item) {
+        return Number(item.score ?? item.anomaly_score ?? item.distance ?? item.anomalyScore ?? 0) || 0;
+    }
+
+    function isAbnormal(item) {
+        const raw = item.label ?? item.result ?? item.status ?? item.prediction ?? item.detect_result ?? item.detectResult;
+        if (raw === 1 || raw === '1' || raw === true) return true;
+        const text = String(raw ?? '').toLowerCase();
+        return text.includes('异常') || text.includes('abnormal') || text.includes('attack') || text.includes('anomaly');
+    }
+
+    function getField(item, keys, fallback = '-') {
+        for (const key of keys) {
+            if (item[key] !== undefined && item[key] !== null && item[key] !== '') return item[key];
+        }
+        return fallback;
+    }
+
+    function formatTime(item) {
+        const value = getField(item, ['time', 'timestamp', 'datetime', 'created_at', 'createdAt'], '');
+        if (!value) return '-';
+        return String(value).replace('T', ' ').slice(0, 19);
+    }
+
+    function riskLevel(rate) {
+        if (rate >= 0.35) return { text: '高风险', cls: 'abnormal' };
+        if (rate >= 0.12) return { text: '中风险', cls: 'warn' };
+        if (rate > 0) return { text: '低风险', cls: 'blue' };
+        return { text: '正常', cls: 'normal' };
+    }
+
+    function drawTrend(events) {
+        const canvas = document.getElementById('trendCanvas');
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width;
+        const h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        ctx.fillStyle = 'rgba(255,255,255,0.02)';
+        ctx.fillRect(0, 0, w, h);
+        ctx.strokeStyle = 'rgba(170,205,255,0.16)';
+        ctx.lineWidth = 1;
+        for (let i = 1; i <= 4; i++) {
+            const y = (h / 5) * i;
+            ctx.beginPath();
+            ctx.moveTo(34, y);
+            ctx.lineTo(w - 18, y);
+            ctx.stroke();
+        }
+
+        const points = events.slice(-30).map(getScore);
+        if (!points.length) {
+            ctx.fillStyle = 'rgba(210,225,245,0.72)';
+            ctx.font = '16px Microsoft YaHei';
+            ctx.textAlign = 'center';
+            ctx.fillText('暂无趋势数据', w / 2, h / 2);
+            return;
+        }
+
+        const max = Math.max(...points, 1);
+        const min = Math.min(...points, 0);
+        const range = Math.max(max - min, 1);
+        const left = 34;
+        const right = w - 18;
+        const top = 18;
+        const bottom = h - 28;
+        const step = points.length > 1 ? (right - left) / (points.length - 1) : 0;
+
+        const coords = points.map((v, i) => {
+            const x = left + i * step;
+            const y = bottom - ((v - min) / range) * (bottom - top);
+            return [x, y, v];
+        });
+
+        ctx.strokeStyle = 'rgba(107,182,255,0.95)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        coords.forEach(([x, y], i) => {
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        coords.forEach(([x, y, v]) => {
+            ctx.beginPath();
+            ctx.arc(x, y, isFinite(v) ? 3.2 : 0, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,255,0.92)';
+            ctx.fill();
+        });
+
+        ctx.fillStyle = 'rgba(210,225,245,0.72)';
+        ctx.font = '12px Microsoft YaHei';
+        ctx.textAlign = 'left';
+        ctx.fillText('异常分数趋势', left, 14);
+        ctx.textAlign = 'right';
+        ctx.fillText('max ' + numberText(max, 3), right, 14);
+    }
+
+    function renderRecords(events) {
+        const body = document.getElementById('recordsBody');
+        const rows = events.slice(-30).reverse();
+        if (!rows.length) {
+            body.innerHTML = '<tr><td colspan="8" class="empty">暂无监测记录</td></tr>';
+            return;
+        }
+        body.innerHTML = rows.map(item => {
+            const abnormal = isAbnormal(item);
+            const srcIp = getField(item, ['src_ip', 'srcIP', 'source_ip', 'Source IP', '源IP']);
+            const dstIp = getField(item, ['dst_ip', 'dstIP', 'destination_ip', 'Destination IP', '目标IP']);
+            const proto = getField(item, ['protocol', 'Protocol', 'proto', '协议']);
+            const srcPort = getField(item, ['src_port', 'srcPort', 'source_port', 'Source Port', '源端口']);
+            const dstPort = getField(item, ['dst_port', 'dstPort', 'destination_port', 'Destination Port', '目标端口']);
+            return `
+                <tr>
+                    <td>${formatTime(item)}</td>
+                    <td>${srcIp}</td>
+                    <td>${dstIp}</td>
+                    <td>${proto}</td>
+                    <td>${srcPort}</td>
+                    <td>${dstPort}</td>
+                    <td>${numberText(getScore(item), 6)}</td>
+                    <td><span class="pill ${abnormal ? 'pill-abnormal' : 'pill-normal'}">${abnormal ? '异常' : '正常'}</span></td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function render(data) {
+        const events = Array.isArray(data.events) ? data.events : [];
+        const total = events.length;
+        const abnormal = events.filter(isAbnormal).length;
+        const normal = Math.max(total - abnormal, 0);
+        const rate = total ? abnormal / total : 0;
+        const scores = events.map(getScore).filter(v => Number.isFinite(v));
+        const avgScore = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+        const maxScore = scores.length ? Math.max(...scores) : 0;
+        const risk = riskLevel(rate);
+
+        const running = data.running === true || data.status === 'running' || data.is_running === true;
+        document.getElementById('statusValue').textContent = running ? '监控中' : '未监控';
+        document.getElementById('statusValue').className = 'value ' + (running ? 'normal' : 'blue');
+        document.getElementById('updateTime').textContent = '刷新时间：' + new Date().toLocaleString();
+
+        document.getElementById('totalValue').textContent = total;
+        document.getElementById('normalValue').textContent = normal;
+        document.getElementById('abnormalValue').textContent = abnormal;
+        document.getElementById('rateValue').textContent = (rate * 100).toFixed(2) + '%';
+        document.getElementById('riskValue').textContent = risk.text;
+        document.getElementById('riskValue').className = 'value ' + risk.cls;
+        document.getElementById('avgScoreValue').textContent = numberText(avgScore, 4);
+        document.getElementById('maxScoreValue').textContent = numberText(maxScore, 4);
+
+        const normalPct = total ? (normal / total) * 100 : 0;
+        const abnormalPct = total ? (abnormal / total) * 100 : 0;
+        document.getElementById('barNormal').style.width = normalPct + '%';
+        document.getElementById('barAbnormal').style.width = abnormalPct + '%';
+        document.getElementById('legendNormal').textContent = normal;
+        document.getElementById('legendAbnormal').textContent = abnormal;
+
+        document.getElementById('summaryText').innerHTML = total
+            ? `当前共记录 <b>${total}</b> 条监测结果，其中正常 <b class="normal">${normal}</b> 条，异常 <b class="abnormal">${abnormal}</b> 条，异常比例为 <b class="warn">${(rate * 100).toFixed(2)}%</b>，整体判断为 <b class="${risk.cls}">${risk.text}</b>。该页面主要用于汇报或演示时对实时监测结果进行直观总结。`
+            : '当前还没有实时监测记录。请先在首页开启实时监控，完成检测后再查看本页面。';
+
+        drawTrend(events);
+        renderRecords(events);
+    }
+
+    async function loadData() {
+        try {
+            const res = await fetch('{{ url_for('monitor_data') }}', { cache: 'no-store' });
+            const data = await res.json();
+            render(data || {});
+        } catch (e) {
+            document.getElementById('summaryText').innerHTML = '<span class="abnormal">监测结果读取失败，请确认后端服务正在运行。</span>';
+        }
+    }
+
+    loadData();
+    timer = setInterval(loadData, REFRESH_INTERVAL);
+</script>
+</body>
+</html>
