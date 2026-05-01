@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+from datetime import datetime
 from functools import wraps
 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
@@ -22,6 +23,7 @@ from system.models.detect_record import DetectRecord
 from system.models.detect_detail import DetectDetail
 from system.models.train_record import TrainRecord
 
+
 app = Flask(__name__, template_folder='system/templates')
 app.config['SECRET_KEY'] = 'deep-sad-secret-key'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///attack_system.db'
@@ -37,6 +39,9 @@ login_manager.login_message_category = 'error'
 
 UPLOAD_FOLDER = os.path.join(PROJECT_ROOT, 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+SUMMARY_DIR = os.path.join(PROJECT_ROOT, 'runtime', 'summary')
+SUMMARY_FILE = os.path.join(SUMMARY_DIR, 'last_detection_summary.json')
 
 # 全局实时监控对象
 monitor = None
@@ -65,6 +70,234 @@ def get_monitor():
             threshold=load_recommended_threshold()
         )
     return monitor
+
+
+def safe_float(value, default=0.0):
+    try:
+        if value is None:
+            return default
+        return float(value)
+    except Exception:
+        return default
+
+
+def safe_int(value, default=0):
+    try:
+        if value is None:
+            return default
+        return int(value)
+    except Exception:
+        return default
+
+
+def calc_risk_level(anomaly_rate):
+    """
+    展示层风险等级，不改变模型判断。
+    anomaly_rate 是 0-1 之间的小数。
+    """
+    if anomaly_rate >= 0.5:
+        return '高风险'
+    elif anomaly_rate >= 0.15:
+        return '中风险'
+    else:
+        return '低风险'
+
+
+def build_detection_summary(
+    filename='检测结果',
+    threshold=0,
+    total=0,
+    normal_count=0,
+    anomaly_count=0,
+    avg_score=0,
+    max_score=0,
+    min_score=0,
+    results=None,
+    source='CSV文件检测'
+):
+    """
+    将一次检测结果整理成大屏页面需要的数据。
+    results 推荐格式：
+    [
+        {'score': 0.12, 'label': 0},
+        {'score': 1.25, 'label': 1}
+    ]
+    """
+    results = results or []
+
+    clean_records = []
+    score_list = []
+
+    threshold = safe_float(threshold, 0)
+
+    for item in results:
+        if isinstance(item, dict):
+            score = safe_float(item.get('score', 0))
+            label_value = item.get('label', None)
+
+            if label_value is None:
+                label = 1 if score > threshold else 0
+            else:
+                label = safe_int(label_value, 0)
+        else:
+            score = safe_float(getattr(item, 'score', 0))
+            label_value = getattr(item, 'label', None)
+
+            if label_value is None:
+                label = 1 if score > threshold else 0
+            else:
+                label = safe_int(label_value, 0)
+
+        score = round(score, 6)
+        label = 1 if label == 1 else 0
+
+        score_list.append(score)
+        clean_records.append({
+            'score': score,
+            'label': label
+        })
+
+    total = safe_int(total, len(clean_records))
+    if total <= 0:
+        total = len(clean_records)
+
+    anomaly_count = safe_int(anomaly_count, 0)
+    normal_count = safe_int(normal_count, 0)
+
+    if clean_records:
+        anomaly_count = sum(1 for item in clean_records if item['label'] == 1)
+        normal_count = len(clean_records) - anomaly_count
+        total = len(clean_records)
+
+    anomaly_rate = anomaly_count / total if total > 0 else 0
+    anomaly_rate_percent = round(anomaly_rate * 100, 2)
+
+    if score_list:
+        avg_score = sum(score_list) / len(score_list)
+        max_score = max(score_list)
+        min_score = min(score_list)
+
+    summary = {
+        'filename': filename,
+        'source': source,
+        'detect_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'threshold': round(safe_float(threshold), 6),
+        'total': total,
+        'normal_count': normal_count,
+        'anomaly_count': anomaly_count,
+        'anomaly_rate': round(anomaly_rate, 4),
+        'anomaly_rate_percent': anomaly_rate_percent,
+        'avg_score': round(safe_float(avg_score), 6),
+        'max_score': round(safe_float(max_score), 6),
+        'min_score': round(safe_float(min_score), 6),
+        'risk_level': calc_risk_level(anomaly_rate),
+        'score_list': score_list[:120],
+        'recent_records': clean_records[:30]
+    }
+
+    return summary
+
+
+def save_detection_summary(summary):
+    """
+    保存最近一次检测总结，供总结大屏读取。
+    """
+    os.makedirs(SUMMARY_DIR, exist_ok=True)
+    with open(SUMMARY_FILE, 'w', encoding='utf-8') as f:
+        json.dump(summary, f, ensure_ascii=False, indent=2)
+
+
+def load_detection_summary():
+    """
+    读取最近一次检测总结。
+    """
+    if not os.path.exists(SUMMARY_FILE):
+        return None
+
+    try:
+        with open(SUMMARY_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def build_summary_from_monitor(live_monitor):
+    """
+    从实时监控缓存事件中生成总结大屏数据。
+    兼容 event 中可能出现的 score / anomaly_score / label / is_anomaly 字段。
+    """
+    try:
+        status = live_monitor.status()
+    except Exception:
+        status = {}
+
+    threshold = safe_float(status.get('threshold', load_recommended_threshold()))
+
+    try:
+        events = live_monitor.get_events(limit=1000)
+    except Exception:
+        events = []
+
+    clean_results = []
+
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+
+        score = safe_float(
+            event.get(
+                'score',
+                event.get(
+                    'anomaly_score',
+                    event.get('distance', 0)
+                )
+            ),
+            0
+        )
+
+        if 'label' in event:
+            label = safe_int(event.get('label'), 0)
+        elif 'is_anomaly' in event:
+            label = 1 if event.get('is_anomaly') else 0
+        elif 'result' in event:
+            result_text = str(event.get('result'))
+            label = 1 if ('异常' in result_text or 'anomaly' in result_text.lower()) else 0
+        else:
+            label = 1 if score > threshold else 0
+
+        clean_results.append({
+            'score': score,
+            'label': label
+        })
+
+    summary = build_detection_summary(
+        filename='实时监控检测结果',
+        threshold=threshold,
+        results=clean_results,
+        source='实时监控'
+    )
+
+    return summary
+
+
+def get_current_monitor_summary():
+    """
+    如果实时监控对象已经存在，则优先生成实时监控总结；
+    如果没有实时监控数据，则返回 None。
+    """
+    global monitor
+
+    if monitor is None:
+        return None
+
+    try:
+        summary = build_summary_from_monitor(monitor)
+        if summary and summary.get('total', 0) > 0:
+            return summary
+    except Exception:
+        return None
+
+    return None
 
 
 @login_manager.user_loader
@@ -181,6 +414,47 @@ def index():
     )
 
 
+@app.route('/summary')
+@login_required
+def summary():
+    """
+    检测总结大屏：
+    优先展示实时监控缓存结果；
+    如果没有实时监控结果，则展示最近一次 CSV 检测结果。
+    """
+    summary_data = get_current_monitor_summary()
+
+    if summary_data is None:
+        summary_data = load_detection_summary()
+
+    return render_template(
+        'summary.html',
+        summary=summary_data,
+        username=current_user.username,
+        role=current_user.role
+    )
+
+
+@app.route('/live-dashboard')
+@login_required
+def live_dashboard():
+    """
+    保留原来的大屏地址，但页面内容改为“检测总结大屏”。
+    这样你原来首页如果有 live-dashboard 入口，也不用改。
+    """
+    summary_data = get_current_monitor_summary()
+
+    if summary_data is None:
+        summary_data = load_detection_summary()
+
+    return render_template(
+        'summary.html',
+        summary=summary_data,
+        username=current_user.username,
+        role=current_user.role
+    )
+
+
 @app.route('/detect', methods=['POST'])
 @login_required
 def detect():
@@ -238,6 +512,21 @@ def detect():
 
     db.session.commit()
 
+    # 保存最近一次检测总结，供总结大屏展示
+    summary_data = build_detection_summary(
+        filename=filename,
+        threshold=threshold,
+        total=total,
+        normal_count=normal_count,
+        anomaly_count=anomaly_count,
+        avg_score=avg_score,
+        max_score=max_score,
+        min_score=min_score,
+        results=results,
+        source='CSV文件检测'
+    )
+    save_detection_summary(summary_data)
+
     return render_template(
         'result.html',
         filename=filename,
@@ -269,6 +558,7 @@ def records():
         role=current_user.role
     )
 
+
 @app.route('/record/<int:record_id>')
 @login_required
 def record_detail(record_id):
@@ -277,7 +567,10 @@ def record_detail(record_id):
     if current_user.role != 'admin' and record.user_id != current_user.id:
         return '无权限查看该检测记录'
 
-    details = DetectDetail.query.filter_by(record_id=record_id).order_by(DetectDetail.sample_index.asc()).all()
+    details = DetectDetail.query.filter_by(record_id=record_id).order_by(
+        DetectDetail.sample_index.asc()
+    ).all()
+
     return render_template(
         'record_detail.html',
         record=record,
@@ -375,11 +668,56 @@ def delete_train_record(record_id):
 # 实时监控接口
 # =========================
 
+@app.route('/monitor/interfaces')
+@login_required
+def monitor_interfaces():
+    """
+    获取当前可用网卡列表。
+    会调用 monitor_service.py 中的 list_interfaces()，
+    由后端短时间采样每个网卡，默认推荐当前流量最高的网卡。
+    """
+    try:
+        live_monitor = get_monitor()
+
+        if not hasattr(live_monitor, 'list_interfaces'):
+            return jsonify({
+                'success': False,
+                'message': '当前 monitor_service.py 缺少 list_interfaces 方法，请先替换新版 monitor_service.py',
+                'interfaces': [],
+                'default_iface': None
+            })
+
+        data = live_monitor.list_interfaces(sample_seconds=0.6)
+
+        return jsonify({
+            'success': True,
+            'interfaces': data.get('interfaces', []),
+            'default_iface': data.get('default_iface')
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'获取网卡列表失败：{str(e)}',
+            'interfaces': [],
+            'default_iface': None
+        })
+
+
 @app.route('/monitor/start', methods=['POST'])
 @login_required
 def monitor_start():
     try:
-        iface = request.form.get('iface', '').strip() or None
+        iface = request.form.get('iface', '').strip()
+
+        # 处理前端的“自动选择网卡”
+        if (
+            iface == ''
+            or iface.lower() == 'auto'
+            or iface in ['自动', '自动选择', '自动选择网卡']
+        ):
+            iface = None
+
         threshold_str = request.form.get('threshold', str(load_recommended_threshold()))
 
         try:
@@ -392,8 +730,9 @@ def monitor_start():
 
         return jsonify({
             'success': True,
-            'message': '实时监控已启动'
+            'message': f'实时监控已启动，当前网卡：{live_monitor.iface}'
         })
+
     except Exception as e:
         return jsonify({
             'success': False,
@@ -407,10 +746,21 @@ def monitor_stop():
     try:
         live_monitor = get_monitor()
         live_monitor.stop()
+
+        # 停止监控后，保存一次实时监控总结
+        try:
+            summary_data = build_summary_from_monitor(live_monitor)
+            if summary_data and summary_data.get('total', 0) > 0:
+                save_detection_summary(summary_data)
+        except Exception:
+            pass
+
         return jsonify({
             'success': True,
-            'message': '实时监控已停止'
+            'message': '实时监控已停止，可进入检测总结大屏查看本次结果',
+            'summary_url': url_for('summary')
         })
+
     except Exception as e:
         return jsonify({
             'success': False,
@@ -423,10 +773,12 @@ def monitor_stop():
 def monitor_status():
     try:
         live_monitor = get_monitor()
+
         return jsonify({
             'success': True,
             'data': live_monitor.status()
         })
+
     except Exception as e:
         return jsonify({
             'success': False,
@@ -439,11 +791,20 @@ def monitor_status():
 def monitor_data():
     try:
         live_monitor = get_monitor()
+
+        summary_data = None
+        try:
+            summary_data = build_summary_from_monitor(live_monitor)
+        except Exception:
+            summary_data = None
+
         return jsonify({
             'success': True,
             'status': live_monitor.status(),
-            'events': live_monitor.get_events(limit=50)
+            'events': live_monitor.get_events(limit=50),
+            'summary': summary_data
         })
+
     except Exception as e:
         return jsonify({
             'success': False,
@@ -454,7 +815,8 @@ def monitor_data():
                 'threshold': load_recommended_threshold(),
                 'cached_events': 0
             },
-            'events': []
+            'events': [],
+            'summary': None
         })
 
 
@@ -535,6 +897,7 @@ def update_user(user_id):
         if len(new_password) < 6:
             flash('新密码长度不能少于 6 位', 'error')
             return redirect(url_for('user_manage'))
+
         user.password = generate_password_hash(new_password)
 
     db.session.commit()
