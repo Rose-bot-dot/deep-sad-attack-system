@@ -74,12 +74,9 @@ class DeepSAD(object):
 
     def test(self, dataset: BaseADDataset, device: str = 'cuda', n_jobs_dataloader: int = 0):
         """Tests the Deep SAD model on the test data."""
-
         if self.trainer is None:
             self.trainer = DeepSADTrainer(self.c, self.eta, device=device, n_jobs_dataloader=n_jobs_dataloader)
-
         self.trainer.test(dataset, self.net)
-
         # Get results
         self.results['test_auc'] = self.trainer.test_auc
         self.results['test_time'] = self.trainer.test_time
@@ -89,23 +86,18 @@ class DeepSAD(object):
                  lr_milestones: tuple = (), batch_size: int = 128, weight_decay: float = 1e-6, device: str = 'cuda',
                  n_jobs_dataloader: int = 0):
         """Pretrains the weights for the Deep SAD network phi via autoencoder."""
-
         # Set autoencoder network
         self.ae_net = build_autoencoder(self.net_name)
-
         # Train
         self.ae_optimizer_name = optimizer_name
         self.ae_trainer = AETrainer(optimizer_name, lr=lr, n_epochs=n_epochs, lr_milestones=lr_milestones,
                                     batch_size=batch_size, weight_decay=weight_decay, device=device,
                                     n_jobs_dataloader=n_jobs_dataloader)
         self.ae_net = self.ae_trainer.train(dataset, self.ae_net)
-
         # Get train results
         self.ae_results['train_time'] = self.ae_trainer.train_time
-
         # Test
         self.ae_trainer.test(dataset, self.ae_net)
-
         # Get test results
         self.ae_results['test_auc'] = self.ae_trainer.test_auc
         self.ae_results['test_time'] = self.ae_trainer.test_time

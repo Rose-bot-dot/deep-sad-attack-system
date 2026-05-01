@@ -155,9 +155,27 @@ def build_autoencoder(net_name):
     return ae_net
 
 
+# 文件路径：deep-sad-attack-system/src/networks/main.py
+
+import os
+import json
+
 def get_attack_input_dim():
-    train_csv = os.path.join('data', 'attack_data', 'train.csv')
-    df = pd.read_csv(train_csv)
-    if 'label' not in df.columns:
-        raise ValueError("train.csv 中缺少 label 列")
-    return df.shape[1] - 1
+    """
+    从 saved_models/feature_columns.json 读取 input_dim，
+    避免依赖不存在的 train.csv 文件
+    """
+    info_path = os.path.join("saved_models", "feature_columns.json")
+
+    if not os.path.exists(info_path):
+        raise FileNotFoundError(
+            f"缺少特征列文件：{info_path}，请先训练模型生成 feature_columns.json"
+        )
+
+    with open(info_path, "r", encoding="utf-8") as f:
+        feature_columns = json.load(f)
+
+    if not isinstance(feature_columns, list) or len(feature_columns) == 0:
+        raise ValueError("feature_columns.json 内容无效")
+
+    return len(feature_columns)

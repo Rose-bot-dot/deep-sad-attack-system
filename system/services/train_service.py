@@ -1,5 +1,9 @@
+# system/services/train_service.py
+
 import os
 import sys
+import json
+import joblib
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 SRC_PATH = os.path.join(PROJECT_ROOT, 'src')
@@ -10,8 +14,8 @@ from datasets.main import load_dataset
 from DeepSAD import DeepSAD
 from system.services.threshold_service import ThresholdRecommender
 
-
 def train_attack_model(pretrain_epochs=10, train_epochs=10, lr=0.001, data_path='data/attack_data'):
+    # 加载数据集
     dataset = load_dataset(
         dataset_name='attack_csv',
         data_path=data_path,
@@ -24,10 +28,11 @@ def train_attack_model(pretrain_epochs=10, train_epochs=10, lr=0.001, data_path=
         random_state=42
     )
 
+    # 初始化 DeepSAD
     deep_sad = DeepSAD(eta=1.0)
     deep_sad.set_network('attack_mlp')
 
-    # AE预训练
+    # 1) 预训练
     deep_sad.pretrain(
         dataset=dataset,
         optimizer_name='adam',
@@ -40,7 +45,7 @@ def train_attack_model(pretrain_epochs=10, train_epochs=10, lr=0.001, data_path=
         n_jobs_dataloader=0
     )
 
-    # Deep SAD正式训练
+    # 2) 正式训练
     deep_sad.train(
         dataset=dataset,
         optimizer_name='adam',
@@ -53,11 +58,32 @@ def train_attack_model(pretrain_epochs=10, train_epochs=10, lr=0.001, data_path=
         n_jobs_dataloader=0
     )
 
+    # ========================= #
+    # 保存模型
+    # ========================= #
     os.makedirs('saved_models', exist_ok=True)
     model_path = 'saved_models/attack_model.tar'
     deep_sad.save_model(model_path, save_ae=True)
 
-    # 用所选数据集目录下的 val.csv 计算推荐阈值
+    # ========================= #
+    # 保存预处理器 & 特征列
+    # ========================= #
+    # dataset 包含 DataLoader，我们取 raw_df 中的 columns 作为训练列
+    feature_columns = dataset.data_df.columns.tolist()  # ⚠ 如果你的 dataset 名称不同，请调整
+
+    # 保存特征列
+    feature_columns_file = 'saved_models/feature_columns.json'
+    with open(feature_columns_file, 'w', encoding='utf-8') as f:
+        json.dump(feature_columns, f, ensure_ascii=False)
+
+    # 保存预处理器
+    preprocessor = deep_sad.get_preprocessor()  # 假设 DeepSAD 支持获得 imputer + scaler
+    preprocessor_file = 'saved_models/preprocessor.joblib'
+    joblib.dump(preprocessor, preprocessor_file)
+
+    # ========================= #
+    # 推荐阈值
+    # ========================= #
     recommender = ThresholdRecommender(model_path=model_path)
     threshold_result = recommender.save_recommended_threshold(
         csv_path=os.path.join(data_path, 'val.csv'),
